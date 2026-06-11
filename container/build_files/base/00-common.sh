@@ -29,13 +29,15 @@ dnf -y remove \
 
 # low-level tooling roughly matching what Fedora CoreOS ships (minus ignition/
 # coreos-installer/moby). rsync is required by build.sh for the package overlays.
+# NOTE: Cayo (F42) also installs ssh-key-dir here, but that package was retired
+# upstream (rust-ssh-key-dir) because OpenSSH 10.0 made the ~/.ssh/authorized_keys.d
+# behavior a builtin. Fedora 44 ships OpenSSH 10.x, so we drop it (not available).
 dnf -y install --setopt=install_weak_deps=False \
   audit \
   git-core \
   ipcalc \
   iscsi-initiator-utils \
-  rsync \
-  ssh-key-dir
+  rsync
 
 # borrow CoreOS' generator for emergency/rescue boot
 # detail: https://github.com/ublue-os/main/issues/653
