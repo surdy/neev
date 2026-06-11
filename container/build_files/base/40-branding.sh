@@ -9,8 +9,11 @@ set ${CI:+-x} -euo pipefail
 # os-release identity
 sed -i 's|^NAME=.*|NAME="Neev"|' /usr/lib/os-release
 sed -i "s|^VERSION=.*|VERSION=\"${IMAGE_VERSION}\"|" /usr/lib/os-release
-sed -i 's|^ID=.*|ID=neev|' /usr/lib/os-release
-sed -i 's|^ID_LIKE=.*|ID_LIKE=fedora|' /usr/lib/os-release
+# Keep ID=fedora (inherited from the base). dnf's copr/config-manager plugins
+# derive the build chroot and $releasever from ID + VERSION_ID; rewriting ID to
+# "neev" makes them look for a nonexistent "neev-44-x86_64" chroot and breaks
+# COPR-based packages (e.g. virtualization). uCore keeps ID=fedora for the same
+# reason; Neev's identity lives in NAME/PRETTY_NAME/VARIANT/VARIANT_ID below.
 sed -i 's|^HOME_URL=.*|HOME_URL="https://github.com/surdy/neev"|' /usr/lib/os-release
 sed -i 's|^DOCUMENTATION_URL=.*|DOCUMENTATION_URL="https://github.com/surdy/neev"|' /usr/lib/os-release
 sed -i 's|^SUPPORT_URL=.*|SUPPORT_URL="https://github.com/surdy/neev/issues"|' /usr/lib/os-release
