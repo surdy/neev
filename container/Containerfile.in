@@ -12,12 +12,17 @@
  * mounts, otherwise rm trips over the mountpoints.
  */
 
-/* ---- akmods sources (reused Universal Blue infra) ---- */
+/* ---- global build-args used in FROM lines (must precede the first FROM) ---- */
 ARG AKMODS_ZFS
+#ifdef NVIDIA
+ARG AKMODS_NVIDIA
+#endif /* NVIDIA */
+ARG SOURCE_IMAGE
+
+/* ---- akmods sources (reused Universal Blue infra) ---- */
 FROM ${AKMODS_ZFS} AS akmods_zfs
 
 #ifdef NVIDIA
-ARG AKMODS_NVIDIA
 FROM ${AKMODS_NVIDIA} AS akmods_nvidia
 #endif /* NVIDIA */
 
@@ -31,7 +36,6 @@ COPY cosign.pub /cosign.pub
 /* =========================================================================
  * neev-minimal  --  base OS assembly (kernel swap, zfs, branding) + minimal tier
  * ========================================================================= */
-ARG SOURCE_IMAGE
 FROM ${SOURCE_IMAGE} AS neev-minimal
 
 ARG IMAGE_VERSION="44"
