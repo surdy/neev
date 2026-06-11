@@ -1,0 +1,10 @@
+NetworkManager-wifi
+atheros-firmware
+brcmfmac-firmware
+iwlegacy-firmware
+iwlwifi-dvm-firmware
+iwlwifi-mvm-firmware
+mt7xxx-firmware
+nxpwireless-firmware
+realtek-firmware
+tiwilink-firmware

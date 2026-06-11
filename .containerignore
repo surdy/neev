@@ -1,0 +1,17 @@
+# Keep the build context lean and prevent secrets/junk from entering it.
+.git
+.github
+.devcontainer
+.devcontainer.json
+build
+docs
+BIB
+Justfile
+images.yaml
+*.md
+LICENSE
+.gitignore
+.shellcheckrc
+.env
+*.key
+cosign.key

@@ -1,0 +1,67 @@
+---
+name: Build Neev
+run-name: Build Neev by @${{ github.actor }}
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *" # daily 0800 UTC
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build-push:
+    name: ${{ matrix.tier }}-${{ matrix.variant }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        tier: [minimal, standard, hci]
+        variant: [base, nvidia-open]
+    container:
+      image: "ghcr.io/ublue-os/devcontainer:latest"
+      options: "--privileged --volume /var/lib/containers:/var/lib/containers --security-opt seccomp=unconfined --security-opt label=disable --user 0:0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Mark workspace safe for git
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Map variant
+        id: var
+        run: |
+          if [[ "${{ matrix.variant }}" == "base" ]]; then
+            echo "value=" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ matrix.variant }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build image
+        run: just build "${{ matrix.tier }}" "${{ steps.var.outputs.value }}"
+        env:
+          CI: "1"
+
+      - name: Push and sign image
+        if: github.event_name != 'pull_request'
+        run: |
+          just login
+          just push "${{ matrix.tier }}" "${{ steps.var.outputs.value }}"
+        env:
+          CI: "1"
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}

@@ -1,0 +1,11 @@
+firewalld
+qemu-guest-agent
+open-vm-tools
+tmux
+wireguard-tools
+usbutils
+xdg-dbus-proxy
+xdg-user-dirs
+man-db
+man-pages
+systemd-container

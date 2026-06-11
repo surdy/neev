@@ -1,0 +1,14 @@
+# Neev standard tier — adds storage, file sharing, and hardware support.
+# Inherits everything in `minimal`.
+wifi
+samba
+nfs
+storage-tools
+monitoring
+distrobox
+rclone
+mergerfs
+
+# --- deferred (scaffolded but not yet verified; see packages/<name>/README.md) ---
+#sanoid
+#cockpit-zfs-manager

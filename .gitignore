@@ -1,0 +1,13 @@
+# secrets — NEVER commit the cosign private key
+*.key
+cosign.key
+.cosign-password.txt
+.env
+
+# build artifacts
+build/
+*.tar
+*.iso
+
+# generated from container/Containerfile.in
+container/Containerfile

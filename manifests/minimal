@@ -1,0 +1,7 @@
+# Neev minimal tier — base server essentials.
+# Built on top of the de-CoreOS'd fedora-bootc base (kernel swap + ZFS).
+cockpit
+server-base
+podman-extras
+tailscale
+intel-compute

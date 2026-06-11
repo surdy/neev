@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dnf config-manager addrepo --overwrite --from-repofile=https://download.docker.com/linux/centos/docker-ce.repo
+dnf -y install --setopt=install_weak_deps=False \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+dnf config-manager setopt docker-ce-stable.enabled=0
+
+ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
+
+mkdir -p /usr/lib/sysctl.d
+echo "net.ipv4.ip_forward = 1" >/usr/lib/sysctl.d/docker-ce.conf
+
+# socket disabled by default; users opt in
+sed -i 's/enable docker/disable docker/' /usr/lib/systemd/system-preset/90-default.preset || true
+systemctl preset docker.service docker.socket || true
+
+cat >/usr/lib/sysusers.d/docker.conf <<'SYSEOF'
+g docker -
+SYSEOF

@@ -1,0 +1,175 @@
+/*
+ * Neev Containerfile.in  --  preprocessed with:
+ *   cpp -E -P -traditional-cpp [-DNVIDIA] container/Containerfile.in > container/Containerfile
+ *
+ * Image names / versions are passed as Dockerfile build-args (ARG / ${VAR}); the C
+ * preprocessor is only used to toggle the optional NVIDIA stage via -DNVIDIA.
+ *
+ * Multi-stage, mirroring uCore:  neev-minimal -> neev -> neev-hci
+ * Build a single tier with:  buildah build --target neev-minimal|neev|neev-hci
+ *
+ * NOTE: 99-finalize (rm -rf /var) always runs in its own RUN with NO /var or /tmp
+ * mounts, otherwise rm trips over the mountpoints.
+ */
+
+/* ---- akmods sources (reused Universal Blue infra) ---- */
+ARG AKMODS_ZFS
+FROM ${AKMODS_ZFS} AS akmods_zfs
+
+#ifdef NVIDIA
+ARG AKMODS_NVIDIA
+FROM ${AKMODS_NVIDIA} AS akmods_nvidia
+#endif /* NVIDIA */
+
+/* ---- build context: scripts + packages + manifests + signing key ---- */
+FROM scratch AS ctx
+COPY container/build_files /build_files
+COPY packages /packages
+COPY manifests /manifests
+COPY cosign.pub /cosign.pub
+
+/* =========================================================================
+ * neev-minimal  --  base OS assembly (kernel swap, zfs, branding) + minimal tier
+ * ========================================================================= */
+ARG SOURCE_IMAGE
+FROM ${SOURCE_IMAGE} AS neev-minimal
+
+ARG IMAGE_VERSION="44"
+ENV IMAGE_VERSION=${IMAGE_VERSION}
+ARG KERNEL_NAME="kernel"
+ENV KERNEL_NAME=${KERNEL_NAME}
+#ifdef NVIDIA
+ENV NVIDIA_OPEN="1"
+#endif /* NVIDIA */
+#ifdef CI_SETX
+ARG CI=1
+#endif /* CI_SETX */
+
+/* common base setup + minimal-tier packages */
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/00-common.sh
+/ctx/build_files/base/01-fedora.sh
+/ctx/build_files/base/02-signing.sh
+/ctx/build_files/build.sh minimal
+ostree container commit
+RUNEOF
+
+/* kernel swap: cached, ublue-signed kernel from akmods-zfs (/kernel-rpms) */
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=bind,from=akmods_zfs,src=/kernel-rpms,dst=/tmp/kernel-rpms \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/10-kernel-swap.sh
+ostree container commit
+RUNEOF
+
+/* signed ZFS kmods from akmods-zfs (/rpms) */
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=bind,from=akmods_zfs,src=/rpms,dst=/tmp/akmods-zfs-rpms \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/20-zfs.sh
+ostree container commit
+RUNEOF
+
+#ifdef NVIDIA
+/* signed nvidia-open kmods from akmods-nvidia-open (/rpms) */
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=bind,from=akmods_nvidia,src=/rpms,dst=/tmp/akmods-nv-rpms \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/30-nvidia.sh
+ostree container commit
+RUNEOF
+#endif /* NVIDIA */
+
+/* branding + initramfs (dracut --add ostree) + prune kernels */
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/40-branding.sh
+/ctx/build_files/base/90-cleanup.sh
+ostree container commit
+RUNEOF
+
+/* finalize: NO /var or /tmp mounts here */
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/99-finalize.sh
+ostree container commit
+RUNEOF
+
+RUN bootc container lint
+
+/* =========================================================================
+ * neev  --  standard server tier (storage, sharing, hardware support)
+ * ========================================================================= */
+FROM neev-minimal AS neev
+
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/build.sh standard
+ostree container commit
+RUNEOF
+
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/99-finalize.sh
+ostree container commit
+RUNEOF
+
+RUN bootc container lint
+
+/* =========================================================================
+ * neev-hci  --  hyper-converged tier (adds virtualization on top of neev)
+ * ========================================================================= */
+FROM neev AS neev-hci
+
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    --mount=type=cache,dst=/var/cache \
+    --mount=type=tmpfs,dst=/var/log \
+    --mount=type=tmpfs,dst=/var/tmp \
+    --mount=type=tmpfs,dst=/tmp \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/build.sh hci
+ostree container commit
+RUNEOF
+
+RUN --mount=type=bind,from=ctx,src=/,dst=/ctx \
+    bash <<'RUNEOF'
+set -euo pipefail
+/ctx/build_files/base/99-finalize.sh
+ostree container commit
+RUNEOF
+
+RUN bootc container lint

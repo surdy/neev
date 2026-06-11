@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2174,SC2114
+#
+# Base setup shared by every Neev image. Adapted from Universal Blue's Cayo
+# (fedora-bootc) base, with the Fedora CoreOS / Ignition / zincati pieces removed.
+
+set ${CI:+-x} -euo pipefail
+
+# See https://github.com/CentOS/centos-bootc/issues/191
+mkdir -m 0700 -p /var/roothome
+
+# make /usr/local and /opt writable
+mkdir -p /var/{opt,usrlocal}
+rm -rf /opt /usr/local
+ln -sf var/opt /opt
+ln -sf ../var/usrlocal /usr/local
+
+# wifi firmware is pulled out of the base; the optional 'wifi' package adds it back
+dnf -y remove \
+  atheros-firmware \
+  brcmfmac-firmware \
+  iwlegacy-firmware \
+  iwlwifi-dvm-firmware \
+  iwlwifi-mvm-firmware \
+  mt7xxx-firmware \
+  nxpwireless-firmware \
+  realtek-firmware \
+  tiwilink-firmware || true
+
+# low-level tooling roughly matching what Fedora CoreOS ships (minus ignition/
+# coreos-installer/moby). rsync is required by build.sh for the package overlays.
+dnf -y install --setopt=install_weak_deps=False \
+  audit \
+  git-core \
+  ipcalc \
+  iscsi-initiator-utils \
+  rsync \
+  ssh-key-dir
+
+# borrow CoreOS' generator for emergency/rescue boot
+# detail: https://github.com/ublue-os/main/issues/653
+COREOS_SULOGIN_GENERATOR_PATH=/usr/lib/systemd/system-generators/coreos-sulogin-force-generator
+curl -fSL -o "${COREOS_SULOGIN_GENERATOR_PATH}" \
+  https://raw.githubusercontent.com/coreos/fedora-coreos-config/refs/heads/stable/overlay.d/05core/usr/lib/systemd/system-generators/coreos-sulogin-force-generator
+chmod +x "${COREOS_SULOGIN_GENERATOR_PATH}"
+
+# zram swap
+cat >/usr/lib/systemd/zram-generator.conf <<'EOF'
+[zram0]
+zram-size = min(ram, 8192)
+EOF
+
+# Updates: native bootc auto-updates (staged, no auto-reboot). No zincati.
+sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/bootc update --quiet|' \
+  /usr/lib/systemd/system/bootc-fetch-apply-updates.service
+sed -i 's|^OnUnitInactiveSec=.*|OnUnitInactiveSec=7d\nPersistent=true|' \
+  /usr/lib/systemd/system/bootc-fetch-apply-updates.timer
+sed -i 's|#AutomaticUpdatePolicy.*|AutomaticUpdatePolicy=stage|' /etc/rpm-ostreed.conf
+sed -i 's|#LockLayering.*|LockLayering=true|' /etc/rpm-ostreed.conf

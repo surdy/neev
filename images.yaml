@@ -1,0 +1,37 @@
+---
+# Neev build configuration — single source of truth for pinned upstreams.
+#
+# NOTE: CI (.github/workflows/build.yml) and the Justfile both hard-pin the same
+# values in their own env/vars. When bumping a version here, update those too.
+# (Kept deliberately yq-free so CI has no extra dependencies.)
+
+# Base bootc image. Neev is "uCore without CoreOS": a plain fedora-bootc base
+# with the kernel re-signed from Universal Blue's akmods cache.
+source: quay.io/fedora/fedora-bootc:44
+version: 44
+
+# Universal Blue akmods caches (reused infra). The coreos-stable flavor carries
+# the ublue-signed stock Fedora kernel plus prebuilt, signed ZFS kmods.
+akmods:
+  flavor: coreos-stable
+  zfs: ghcr.io/ublue-os/akmods-zfs:coreos-stable-44
+  # Proprietary NVIDIA is not built for Fedora flavors; only nvidia-open is.
+  nvidia_open: ghcr.io/ublue-os/akmods-nvidia-open:coreos-stable-44
+
+# Published image matrix: tier x variant.
+registry: ghcr.io
+org: surdy
+
+tiers:
+  - minimal     # neev-minimal : base server (cockpit, podman, tailscale, zfs)
+  - standard    # neev         : + storage / sharing / hardware support
+  - hci         # neev-hci     : + virtualization (libvirt, cockpit-machines)
+
+variants:
+  - name: ""              # default (no discrete GPU stack)
+    cppFlags: []
+  - name: nvidia-open     # adds signed nvidia-open kmods
+    cppFlags: ["NVIDIA"]
+
+# Image build tooling.
+bootc-image-builder: quay.io/centos-bootc/bootc-image-builder:latest

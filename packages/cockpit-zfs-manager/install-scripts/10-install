@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Installs the optenmodig/cockpit-zfs-manager Cockpit plugin from a release tarball.
+VERSION="1.3.1"
+TARBALL="cockpit-zfs-manager.tar.gz"
+curl --fail --retry 5 --retry-delay 5 --retry-all-errors -sL \
+    "https://github.com/optenmodig/cockpit-zfs-manager/archive/refs/tags/v${VERSION}.tar.gz" \
+    -o "/tmp/${TARBALL}"
+tar -xzf "/tmp/${TARBALL}" -C /tmp
+install -d /usr/share/cockpit/zfs
+cp -r "/tmp/cockpit-zfs-manager-${VERSION}/zfs/." /usr/share/cockpit/zfs/
+rm -rf "/tmp/${TARBALL}" "/tmp/cockpit-zfs-manager-${VERSION}"

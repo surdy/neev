@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+/ctx/build_files/github-release-install.sh trapexit/mergerfs "fc$(rpm -E %fedora).$(uname -m)"

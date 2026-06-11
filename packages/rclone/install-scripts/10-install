@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+/ctx/build_files/github-release-install.sh rclone/rclone "linux-amd64"

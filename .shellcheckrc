@@ -1,0 +1,6 @@
+# We only use bash.
+shell=bash
+
+# SC2148: shebang not needed (scripts are sourced/run by build.sh)
+# SC1113: cpp directives / shebang handling
+disable=SC2148,SC1113

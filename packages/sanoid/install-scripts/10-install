@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# sanoid/syncoid: ZFS snapshot management.
+dnf -y copr enable ublue-os/staging
+dnf -y install --setopt=install_weak_deps=False sanoid
+dnf -y copr disable ublue-os/staging

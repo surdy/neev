@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Mark this image as the HCI variant in os-release.
+OSREL=/usr/lib/os-release
+if [[ -f "$OSREL" ]] && ! grep -q 'Neev HCI' "$OSREL"; then
+    sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="Neev HCI"/' "$OSREL"
+fi
