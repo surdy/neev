@@ -90,6 +90,10 @@ push tier="standard" variant="":
     done
 
     if [[ -n "${COSIGN_PRIVATE_KEY:-}" ]]; then
+      # cosign uses go-containerregistry's keychain (~/.docker/config.json), which
+      # the `podman login` step does not populate. Authenticate cosign explicitly
+      # so it can push the signature attachment to the registry.
+      cosign login {{ registry }} -u "${REGISTRY_USER:-{{ org }}}" -p "${REGISTRY_TOKEN:?set REGISTRY_TOKEN}"
       digest="$(cat "$digestfile")"
       cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${image}@${digest}"
     fi
