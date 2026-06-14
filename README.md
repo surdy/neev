@@ -45,17 +45,28 @@ Tags: `:latest`, `:44` (Fedora major), and `:44.YYYYMMDD` (pinned for rollback).
 
 ### From an installer ISO
 
-Build an ISO with [bootc-image-builder](https://github.com/osbuild/bootc-image-builder)
-(see [`BIB/iso.toml`](BIB/iso.toml)):
+**Build in CI (recommended — no local Linux/podman needed).** Trigger the
+[**Build Neev ISO**](../../actions/workflows/build-iso.yml) workflow
+(Actions → *Build Neev ISO* → *Run workflow*), pick a `tier` and `variant`, and
+download the resulting `*.iso` (plus its `.sha256` and cosign `.sig`) from the
+run's **Artifacts**. Or from the CLI:
+
+```bash
+gh workflow run build-iso.yml -f tier=standard -f variant=base
+gh run watch                         # then: gh run download <run-id>
+```
+
+**Build locally** (needs Linux with rootful/privileged podman):
 
 ```bash
 just build-iso standard            # or: minimal | hci, optionally nvidia-open
 ```
 
-The ISO runs a semi-interactive Anaconda install (you create your user; disk is
-auto-partitioned as XFS). On Secure Boot systems it enrolls Universal Blue's MOK
-so the signed kernel and kmods load — confirm at first boot with the password
-**`universalblue`**.
+Both paths use [bootc-image-builder](https://github.com/osbuild/bootc-image-builder)
+with [`BIB/iso.toml`](BIB/iso.toml). The ISO runs a semi-interactive Anaconda
+install (you create your user; disk is auto-partitioned as XFS). On Secure Boot
+systems it enrolls Universal Blue's MOK so the signed kernel and kmods load —
+confirm at first boot with the password **`universalblue`**.
 
 ### Onto an existing bootc/Fedora Atomic host
 

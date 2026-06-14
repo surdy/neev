@@ -1,0 +1,130 @@
+---
+name: Build Neev ISO
+run-name: Build Neev ISO (${{ inputs.tier }}-${{ inputs.variant }}) by @${{ github.actor }}
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Image tier to build an installer for"
+        type: choice
+        default: standard
+        options:
+          - minimal
+          - standard
+          - hci
+      variant:
+        description: "Image variant"
+        type: choice
+        default: base
+        options:
+          - base
+          - nvidia-open
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tier }}-${{ inputs.variant }}
+  cancel-in-progress: true
+
+jobs:
+  build-iso:
+    name: ${{ inputs.tier }}-${{ inputs.variant }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Free up disk space
+        run: |
+          # Installer ISOs plus BIB's intermediate artifacts need ~20-25 GiB;
+          # reclaim space the hosted runner spends on toolchains we don't use.
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/share/boost \
+            "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}"
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Resolve image reference
+        id: img
+        run: |
+          case "${{ inputs.tier }}" in
+            minimal)  name="neev-minimal" ;;
+            standard) name="neev" ;;
+            hci)      name="neev-hci" ;;
+            *) echo "unknown tier '${{ inputs.tier }}'" >&2; exit 1 ;;
+          esac
+          suffix=""
+          [[ "${{ inputs.variant }}" == "nvidia-open" ]] && suffix="-nvidia-open"
+          image="ghcr.io/${{ github.repository_owner }}/${name}${suffix}:latest"
+          iso="neev-${{ inputs.tier }}${suffix}-44.$(date +%Y%m%d).iso"
+          {
+            echo "image=${image}"
+            echo "iso=${iso}"
+          } >> "$GITHUB_OUTPUT"
+          echo ":: source image  = ${image}"
+          echo ":: iso file name = ${iso}"
+
+      - name: Authenticate to ghcr.io and pull image
+        run: |
+          # Pull the (private by default) source image into root's container
+          # storage with an explicit auth file we can hand to BIB below.
+          sudo podman login ghcr.io \
+            -u "${{ github.actor }}" -p "${{ github.token }}" \
+            --authfile /tmp/auth.json
+          sudo podman pull --authfile /tmp/auth.json "${{ steps.img.outputs.image }}"
+
+      - name: Build installer ISO (bootc-image-builder)
+        run: |
+          mkdir -p "${PWD}/output"
+          sudo podman run --rm --privileged \
+            --security-opt label=type:unconfined_t \
+            --env REGISTRY_AUTH_FILE=/run/containers/0/auth.json \
+            -v /tmp/auth.json:/run/containers/0/auth.json:ro \
+            -v "${PWD}/output:/output" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -v "${PWD}/BIB/iso.toml:/config.toml:ro" \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type anaconda-iso \
+            --use-librepo=True \
+            "${{ steps.img.outputs.image }}"
+
+      - name: Checksum and sign ISO
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          src="$(sudo find "${PWD}/output" -name '*.iso' -print -quit)"
+          [[ -n "${src}" ]] || { echo "no ISO produced" >&2; exit 1; }
+
+          mkdir -p dist
+          iso="dist/${{ steps.img.outputs.iso }}"
+          sudo mv "${src}" "${iso}"
+          sudo chown "$(id -u):$(id -g)" "${iso}"
+
+          ( cd dist && sha256sum "${{ steps.img.outputs.iso }}" > "${{ steps.img.outputs.iso }}.sha256" )
+
+          if [[ -n "${COSIGN_PRIVATE_KEY:-}" ]]; then
+            cosign sign-blob --yes \
+              --key env://COSIGN_PRIVATE_KEY \
+              --output-signature "${iso}.sig" \
+              "${iso}"
+          fi
+          ls -lh dist
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: neev-${{ inputs.tier }}-${{ inputs.variant }}-iso
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error

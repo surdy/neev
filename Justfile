@@ -123,7 +123,7 @@ build-iso tier="standard" variant="":
       -v /var/lib/containers/storage:/var/lib/containers/storage \
       -v "$(pwd)/BIB/iso.toml:/config.toml:ro" \
       quay.io/centos-bootc/bootc-image-builder:latest \
-      --type iso --use-librepo=True "$img"
+      --type anaconda-iso --use-librepo=True "$img"
 
 [group('build')]
 clean:
