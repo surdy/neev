@@ -27,6 +27,16 @@ echo 'DEFAULT_HOSTNAME="neev"' >>/usr/lib/os-release
 echo 'VARIANT="Neev"' >>/usr/lib/os-release
 echo 'VARIANT_ID=neev' >>/usr/lib/os-release
 
+# Default root filesystem type for the install flows. Without it, both
+# `bootc install to-disk` and bootc-image-builder (anaconda-iso) abort with
+# "no default root filesystem type specified in container". XFS matches the ISO
+# kickstart's autopart and uCore's default.
+mkdir -p /usr/lib/bootc/install
+cat >/usr/lib/bootc/install/00-neev.toml <<'EOF'
+[install.filesystem.root]
+type = "xfs"
+EOF
+
 # Universal Blue akmods signing certificate (kernel + zfs/nvidia kmods)
 mkdir -p /etc/pki/akmods/certs
 cat >/etc/pki/akmods/certs/akmods-ublue.pem <<'EOF'
