@@ -68,6 +68,14 @@ install (you create your user; disk is auto-partitioned as XFS). On Secure Boot
 systems it enrolls Universal Blue's MOK so the signed kernel and kmods load —
 confirm at first boot with the password **`universalblue`**.
 
+Each CI artifact ships the `*.iso` alongside a `*.iso.sha256` checksum and a
+cosign `*.iso.cosign.bundle`. Verify before flashing:
+
+```bash
+sha256sum -c neev-*.iso.sha256
+cosign verify-blob --key cosign.pub --bundle neev-*.iso.cosign.bundle neev-*.iso
+```
+
 ### Onto an existing bootc/Fedora Atomic host
 
 ```bash

@@ -12,6 +12,8 @@ on:
       - "**.md"
       - "LICENSE"
       - ".gitignore"
+      - "BIB/**"
+      - ".github/workflows/build-iso.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}

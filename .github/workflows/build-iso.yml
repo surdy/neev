@@ -114,9 +114,11 @@ jobs:
           ( cd dist && sha256sum "${{ steps.img.outputs.iso }}" > "${{ steps.img.outputs.iso }}.sha256" )
 
           if [[ -n "${COSIGN_PRIVATE_KEY:-}" ]]; then
+            # cosign 3.x sign-blob emits a self-contained bundle (signature +
+            # metadata); --output-signature is deprecated and ignored.
             cosign sign-blob --yes \
               --key env://COSIGN_PRIVATE_KEY \
-              --output-signature "${iso}.sig" \
+              --bundle "${iso}.cosign.bundle" \
               "${iso}"
           fi
           ls -lh dist
